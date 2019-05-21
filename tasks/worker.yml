@@ -6,6 +6,7 @@
 
 - name: change selinux policy
   selinux:
+    policy: targeted
     state: permissive
 
 - command: setenforce 0
@@ -17,6 +18,7 @@
     path: /proc/sys/net/bridge/bridge-nf-call-iptables
     state: present
     line: '1'
+    create: yes
 
 - name: making entries in kubernetes repo file
   blockinfile:
@@ -43,10 +45,13 @@
     line: "OPTIONS='--selinux-enabled --insecure-registry={{ ansible_all_ipv4_addresses[0] }}:5000--log-driver=journald --signature-verification=false'"
 
 - name: Enabling firewalld ports
-  firewalld:
-    port: ['10250/tcp', '10255/tcp', '30000-32767/tcp', '6783/tcp']
+  firewalld: 
+    port: "{{ item }}"
     permanent: true
     state: enabled
+  with_items:
+  - "{{ ports_allow_worker }}"
+
 
 - name: reload service firewalld
   systemd:

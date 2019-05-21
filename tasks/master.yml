@@ -30,10 +30,13 @@
     enabled: yes
 
 - name: Enabling firewalld ports
-  firewalld:
-    port: ['10250/tcp', '10255/tcp', '30000-32767/tcp', '6783/tcp']
+  firewalld: 
+    port: "{{ item }}"
     permanent: true
     state: enabled
+  with_items:
+  - "{{ ports_allow_master }}"
+
 
 - name: reload service firewalld
   systemd:
@@ -74,10 +77,15 @@
   service:
     name: docker
     enabled: yes
+    state: restarted
 
 
 - name: running swapoff 
   command: swapoff -a
+
+- name: kubeadm init command
+  command: kubeadm init
+  ignore_errors: yes
 
 - name: creating kube folder
   file:
