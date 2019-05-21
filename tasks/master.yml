@@ -1,0 +1,100 @@
+- name: installing selinux dependecy
+  yum:
+    name: libselinux-python
+    state: latest
+
+- name: change selinux policy
+  selinux:
+    policy: targeted
+    state: permissive
+
+- command: setenforce 0
+
+- command: sed -i --follow-symlinks 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/selinux
+
+- name: Installing Packages
+  yum:
+    name: ['docker', 'kubelet', 'kubeadm', 'kubectl', 'firewalld']
+    state: latest
+    exclude: kubernetes
+
+- name: configuring docker file to use ip address
+  lineinfile:
+    path: /etc/sysconfig/docker
+    regexp: '^OPTIONS'
+    line: "OPTIONS='--selinux-enabled --insecure-registry={{ ansible_all_ipv4_addresses[0] }}:5000--log-driver=journald --signature-verification=false'"
+
+- name: enabling kubelet service
+  service:
+    name: kubelet
+    enabled: yes
+
+- name: Enabling firewalld ports
+  firewalld:
+    port: ['10250/tcp', '10255/tcp', '30000-32767/tcp', '6783/tcp']
+    permanent: true
+    state: enabled
+
+- name: reload service firewalld
+  systemd:
+    name: firewalld
+    state: reloaded
+
+- name: Loading kernel module
+  modprobe:
+    name: br_netfilter
+    state: present
+
+- name: making entries in bridge-nf-call-iptables file
+  lineinfile:
+    path: /proc/sys/net/bridge/bridge-nf-call-iptables
+    state: present
+    line: '1'
+
+
+- name: making entries in kubernetes repo file
+  blockinfile:
+    path: /etc/yum.repos.d/kubernetes.repo
+    state: present
+    create: yes
+    insertafter: EOF
+    block: |
+      [kubernetes]
+      name=Kubernetes
+      baseurl=http://10.10.60.169/kubernetes/
+      enabled=1
+      gpgcheck=0
+
+- name: restarting kubelet service
+  service:
+    name: kubelet
+    state: restarted
+
+- name: enabling docker service
+  service:
+    name: docker
+    enabled: yes
+
+
+- name: running swapoff 
+  command: swapoff -a
+
+- name: creating kube folder
+  file:
+    path: /root/.kube
+    state: directory
+    recurse: yes
+
+- name: copying admin conf file
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /root/.kube/config
+    remote_src: yes
+
+
+- name: change owner
+  file:
+    path: /root/.kube
+    owner: root
+    group: root
+
